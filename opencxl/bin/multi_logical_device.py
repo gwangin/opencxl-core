@@ -38,11 +38,12 @@ def start_group(config_file):
     mlds = []
     for device_config in cxl_env.multi_logical_device_configs:
         mld = MultiLogicalDevice(
+            num_ld=len(device_config.port_index),
             port_indexes=device_config.port_index,
             memory_sizes=device_config.memory_size,
             memory_files=device_config.memory_file,
             host=cxl_env.switch_config.host,
-            port=cxl_env.switch_config.port,
+            port=cxl_env.switch_config.port
         )
         mlds.append(mld)
     asyncio.run(run_devices(mlds))

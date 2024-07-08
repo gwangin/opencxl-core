@@ -17,12 +17,12 @@ from typing import List
 class MultiLogicalDevice(RunnableComponent):
     def __init__(
         self,
+        num_ld,
         port_indexes: List[int],
         memory_sizes: List[int],
         memory_files: List[str],
         host: str = "0.0.0.0",
-        port: int = 8000,
-        num_ld: int = 2
+        port: int = 8000
     ):
         label = "Port " + " ".join([f"{port_index}" for port_index in port_indexes])
         super().__init__(label)
