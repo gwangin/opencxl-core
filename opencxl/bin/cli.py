@@ -15,6 +15,7 @@ from opencxl.util.logger import logger
 from opencxl.bin import fabric_manager
 from opencxl.bin import cxl_switch
 from opencxl.bin import single_logical_device as sld
+from opencxl.bin import multi_logical_device as mld
 from opencxl.bin import cxl_host
 from opencxl.bin import mem
 
@@ -25,9 +26,9 @@ def cli():
 
 
 def validate_component(ctx, param, components):
-    valid_components = ["fm", "switch", "host", "host-group", "sld", "sld-group"]
+    valid_components = ["fm", "switch", "host", "host-group", "sld", "sld-group", "mld", "mld-group"]
     if "all" in components:
-        return ("fm", "switch", "host-group", "sld-group")
+        return ("fm", "switch", "host-group", "sld-group", "mld-group")
     for c in components:
         if not c in valid_components:
             raise click.BadParameter(f"Please select from {list(valid_components)}")
@@ -76,7 +77,7 @@ def start(
     """Start components"""
 
     # config file mandatory
-    config_components = ["switch", "sld-group", "host-group"]
+    config_components = ["switch", "sld-group", "host-group", "mld-group"]
     for c in comp:
         if c in config_components and not config_file:
             raise click.BadParameter(f"Must specify <config file> for {config_components}")
@@ -123,6 +124,16 @@ def start(
         t_sgroup = threading.Thread(target=start_sld_group, args=(ctx, config_file))
         threads.append(t_sgroup)
         t_sgroup.start()
+
+    if "mld" in comp:
+        t_mld = threading.Thread(target=start_mld, args=(ctx,))
+        threads.append(t_mld)
+        t_host.start()
+
+    if "mld-group" in comp:
+        t_mgroup = threading.Thread(target=start_mld_group, args=(ctx, config_file))
+        threads.append(t_mgroup)
+        t_mgroup.start()
 
     if "host" in comp or "host-group" in comp:
         hm_mode = not no_hm
@@ -201,6 +212,14 @@ def start_sld(ctx, config_file):
 
 def start_sld_group(ctx, config_file):
     ctx.invoke(sld.start_group, config_file=config_file)
+
+
+def start_mld(ctx, config_file):
+    ctx.invoke(mld.start, config_file=config_file)
+
+
+def start_mld_group(ctx, config_file):
+    ctx.invoke(mld.start_group, config_file=config_file)
 
 
 @cli.command(name="stop")
