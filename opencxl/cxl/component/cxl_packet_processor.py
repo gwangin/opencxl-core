@@ -8,7 +8,7 @@
 from asyncio import StreamReader, StreamWriter, create_task, gather, Queue
 from dataclasses import dataclass
 from enum import StrEnum, IntEnum
-from typing import cast, Optional, Dict
+from typing import cast, Optional, Dict, Union, List
 
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
@@ -34,6 +34,25 @@ class FifoGroup:
     cxl_mem: Queue
     cxl_cache: Queue
 
+    @staticmethod
+    async def merge_queues(target_queue: Queue, source_queues: List[Queue]):
+        for queue in source_queues:
+            while not queue.empty():
+                item = await queue.get()
+                await target_queue.put(item)
+                queue.task_done()
+
+    @classmethod
+    async def merge_groups(cls, groups: List['FifoGroup']) -> 'FifoGroup':
+        merged_group = cls()
+        await gather(
+            cls.merge_queues(merged_group.cfg_space, [group.cfg_space for group in groups]),
+            cls.merge_queues(merged_group.mmio, [group.mmio for group in groups]),
+            cls.merge_queues(merged_group.cxl_mem, [group.cxl_mem for group in groups]),
+            cls.merge_queues(merged_group.cxl_cache, [group.cxl_cache for group in groups]),
+        )
+        return merged_group
+
 
 class CXL_IO_FIFO_TYPE(IntEnum):
     CFG = 0
@@ -50,7 +69,7 @@ class CxlPacketProcessor(RunnableComponent):
         self,
         reader: StreamReader,
         writer: StreamWriter,
-        cxl_connection: CxlConnection,
+        cxl_connection: Union[CxlConnection, List[CxlConnection]],
         component_type: CXL_COMPONENT_TYPE,
         label: Optional[str] = None,
     ):
@@ -116,6 +135,21 @@ class CxlPacketProcessor(RunnableComponent):
             ):
                 self._incoming.cxl_mem = self._cxl_connection.cxl_mem_fifo.host_to_target
                 self._outgoing.cxl_mem = self._cxl_connection.cxl_mem_fifo.target_to_host
+        elif component_type == CXL_COMPONENT_TYPE.LD:
+            self._incoming = [FifoGroup(
+                cfg_space=cxl_conn.cfg_fifo.host_to_target,
+                mmio=cxl_conn.mmio_fifo.host_to_target,
+                cxl_mem=cxl_conn.cxl_mem_fifo.host_to_target,
+                cxl_cache=None,
+            ) for cxl_conn in self._cxl_connection]
+
+            self._outgoing = [FifoGroup(
+                cfg_space=cxl_conn.cfg_fifo.target_to_host,
+                mmio=cxl_conn.mmio_fifo.target_to_host,
+                cxl_mem=cxl_conn.cxl_mem_fifo.target_to_host,
+                cxl_cache=None,
+            ) for cxl_conn in self._cxl_connection]
+            
         else:
             raise Exception(f"Unsupported component type {component_type.name}")
 
@@ -153,6 +187,7 @@ class CxlPacketProcessor(RunnableComponent):
         while True:
             try:
                 packet = await self._reader.get_packet()
+                # io need be modified to supprots MLD
                 if packet.is_cxl_io():
                     cxl_io_packet = cast(CxlIoBasePacket, packet)
                     if cxl_io_packet.is_cpl() or cxl_io_packet.is_cpld():
@@ -195,7 +230,17 @@ class CxlPacketProcessor(RunnableComponent):
                         self._create_message(f"Received {self._incoming_dir} CXL.mem packet")
                     )
                     cxl_mem_packet = cast(CxlMemBasePacket, packet)
-                    await self._incoming.cxl_mem.put(cxl_mem_packet)
+                    if self._component_type == CXL_COMPONENT_TYPE.LD:
+                        # LD routing code
+                        if cxl_mem_packet.is_m2sreq():
+                            ld_id = cxl_mem_packet.m2sreq_header.ld_id
+                        else:
+                            ld_id = cxl_mem_packet.m2srwd_header.ld_id
+
+                        await self._incoming.cxl_mem[ld_id].put(cxl_mem_packet)
+                    else:                        
+                        await self._incoming.cxl_mem.put(cxl_mem_packet)
+
                 elif packet.is_cxl_cache():
                     if self._incoming.cxl_cache is None:
                         logger.error(
@@ -274,10 +319,16 @@ class CxlPacketProcessor(RunnableComponent):
             await self._writer.drain()
         logger.debug(self._create_message("Stopped outgoing MMIO FIFO processor"))
 
+    # MLD mem routing
     async def _process_outgoing_cxl_mem_packets(self):
         logger.debug(self._create_message("Starting outgoing CXL.mem FIFO processor"))
         while True:
-            packet = await self._outgoing.cxl_mem.get()
+            if self._component_type == CXL_COMPONENT_TYPE.LD:
+                self._outgoing = [await FifoGroup.merge_groups(self._outgoing)]
+                packet = await self._outgoing[0].cxl_mem.get()
+            else:
+                packet = await self._outgoing.cxl_mem.get()
+                
             if self._is_disconnection_notification(packet):
                 break
             self._writer.write(bytes(packet))
