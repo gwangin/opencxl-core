@@ -52,6 +52,8 @@ class CxlMemManager(PacketProcessor):
         data = await self._memory_device_component.read_mem(address)
 
         packet = CxlMemMemDataPacket.create(data)
+        print("[CXL MEM Manger] : _process_cxl_mem_rd_packet LD_ID ", mem_rd_packet.tlp_prefix.ld_id)
+        mem_rd_packet.tlp_prefix.ld_id += 1
         await self._upstream_fifo.target_to_host.put(packet)
 
     async def _process_cxl_mem_wr_packet(self, mem_wr_packet: CxlMemMemWrPacket):
@@ -62,6 +64,9 @@ class CxlMemManager(PacketProcessor):
 
         if self._memory_device_component is None:
             raise Exception("CxlMemoryDeviceComponent isn't set yet")
+
+        print("[CXL MEM Manger] : _process_cxl_mem_wr_packet LD_ID ", mem_wr_packet.tlp_prefix.ld_id)
+        mem_wr_packet.tlp_prefix.ld_id += 1
 
         address = mem_wr_packet.get_address()
         data = mem_wr_packet.data
