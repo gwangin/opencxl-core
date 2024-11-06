@@ -6,9 +6,11 @@
 """
 
 from asyncio import CancelledError, StreamReader, create_task
+import asyncio
 from enum import Enum, auto
 import traceback
 from typing import Optional, Tuple
+from typing import cast
 
 from opencxl.cxl.transport.transaction import (
     BasePacket,
@@ -20,6 +22,7 @@ from opencxl.cxl.transport.transaction import (
     CxlCacheH2DDataPacket,
     CxlCacheH2DReqPacket,
     CxlCacheH2DRspPacket,
+    GetLdInfoResponsePacket,
     SidebandConnectionRequestPacket,
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
@@ -35,6 +38,9 @@ from opencxl.cxl.transport.transaction import (
     CxlMemS2MBISnpPacket,
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
+    CciBasePacket,
+    CciRequestPacket,
+    CciResponsePacket,
 )
 from opencxl.util.logger import logger
 from opencxl.util.component import LabeledComponent
@@ -63,8 +69,10 @@ class PacketReader(LabeledComponent):
         try:
             self._task = create_task(self._get_packet_in_task())
             packet = await self._task
+            # await asyncio.gather(self._task)
+            # packet = await self._get_packet_in_task()
         except Exception as e:
-            logger.debug(self._create_message(str(e)))
+            logger.info(self._create_message(str(e)))
             if str(e) != "Connection disconnected":
                 logger.debug(traceback.format_exc())
             raise Exception("PacketReader is aborted") from e
@@ -85,6 +93,7 @@ class PacketReader(LabeledComponent):
 
     async def _get_packet_in_task(self) -> BasePacket:
         base_packet, payload = await self._get_payload()
+
         if base_packet.is_cxl_io():
             logger.debug(self._create_message("Received Packet is CXL.io"))
             return self._get_cxl_io_packet(payload)
@@ -97,18 +106,22 @@ class PacketReader(LabeledComponent):
         if base_packet.is_sideband():
             logger.debug(self._create_message("Received Packet is sideband"))
             return self._get_sideband_packet(payload)
+        if base_packet.is_cci():
+            return self._get_cci_packet(payload)
         raise Exception("Unsupported packet")
 
     async def _get_payload(self) -> Tuple[BasePacket, bytes]:
-        logger.debug(self._create_message("Waiting Packet"))
+        logger.info(self._create_message("Waiting Packet"))
         header_load = await self._read_payload(BasePacket.get_size())
         base_packet = BasePacket()
         base_packet.reset(header_load)
-        remaining_length = base_packet.system_header.payload_length - len(base_packet)
+        remaining_length = base_packet.system_header.payload_length - len(
+            base_packet
+        )  # 여기서 뻑남
         if remaining_length < 0:
             raise Exception("remaining length is less than 0")
         payload = bytes(base_packet) + await self._read_payload(remaining_length)
-        logger.debug(self._create_message("Received Packet"))
+        logger.info(self._create_message("Received Packet"))
         return base_packet, payload
 
     async def _read_payload(self, size: int) -> bytes:
@@ -189,6 +202,24 @@ class PacketReader(LabeledComponent):
 
         cxl_cache_packet.reset(payload)
         return cxl_cache_packet
+
+    def _get_cci_packet(self, payload: bytes) -> CciBasePacket:
+        cci_base_packet = CciBasePacket()
+        header_size = len(cci_base_packet.cci_header) + BasePacket.get_size()
+        cci_base_packet.reset(payload[:header_size])
+        if cci_base_packet.is_req():
+            cci_packet = CciRequestPacket()
+            cci_packet.reset(payload)
+        elif cci_base_packet.is_rsp():
+            cci_packet = CciResponsePacket()
+            cci_packet.reset(payload)
+            if cci_packet.get_command_opcode() == 0x5400:
+                cci_packet = GetLdInfoResponsePacket()
+                cci_packet.reset(payload)
+        else:
+            raise Exception("Unsupported CCI packet")
+
+        return cci_packet
 
     def _get_sideband_packet(self, payload: bytes) -> BaseSidebandPacket:
         base_sideband_packet = BaseSidebandPacket()

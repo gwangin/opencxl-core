@@ -58,7 +58,7 @@ class MultiLogicalDevice(RunnableComponent):
             self._cxl_connections[0].mmio_fifo.target_to_host,
             self._cxl_connections[0].cxl_mem_fifo.target_to_host,
             self._cxl_connections[0].cxl_cache_fifo.target_to_host,
-            self._cxl_connections[0].cci_fifo.target_to_host,
+            # self._cxl_connections[0].cci_fifo.target_to_host,
         )
 
         # Share the outgoing queue across multiple LDs
@@ -70,7 +70,7 @@ class MultiLogicalDevice(RunnableComponent):
                 connection.mmio_fifo.target_to_host = base_outgoing.mmio
                 connection.cxl_mem_fifo.target_to_host = base_outgoing.cxl_mem
                 connection.cxl_cache_fifo.target_to_host = base_outgoing.cxl_cache
-                connection.cci_fifo.target_to_host = base_outgoing.cci_fifo
+                # connection.cci_fifo.target_to_host = base_outgoing.cci_fifo
 
         for ld in range(num_ld):
             cxl_type3_device = CxlType3Device(
