@@ -29,16 +29,12 @@ from opencxl.cxl.transport.transaction import (
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,
     CxlIoCompletionWithDataPacket,
-    CciBasePacket,
-    GetLdInfoResponsePayload,
-    CciMessagePacket,
-    CciPayloadPacket,
-    CciMessageHeaderPacket,
-    GetLdAllocationsRequestPacket,
     GetLdInfoRequestPacket,
-    CciResponseHeader,
-    CciResponsePacket,
     GetLdInfoResponsePacket,
+    GetLdAllocationsRequestPacket,
+    GetLdAllocationsResponsePacket,
+    SetLdAllocationsRequestPacket,
+    SetLdAllocationsResponsePacket,
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,
 )
@@ -346,28 +342,56 @@ async def test_multi_logical_device_ld_id():
         packet_reader = PacketReader(reader, label="send_packets")
         packet_writer = writer
 
-        logger.info("[PyTest] Sending tunnel management command request packets from switch")
+        logger.info("[PyTest] Sending tunnel management command request packets from switch to MLD Start")
 
-        get_ld_info_request_packet = GetLdInfoRequestPacket.create(
-            port_or_ldid=0x3, message_catecory=0
-        )
-        print("get_ld_info_request_packet: ", get_ld_info_request_packet)
-        logger.info("I'm here")
+        logger.info(f"[PyTest]  Get LD info  Start")
+        get_ld_info_request_packet = GetLdInfoRequestPacket.create(port_or_ldid=0x3, message_catecory=0)
         packet_writer.write(bytes(get_ld_info_request_packet))
-        logger.info("I'm here")
         await packet_writer.drain()
-        logger.info("I'm here")
-        await asyncio.sleep(1)
-        logger.info("I'm here")
         packet = await packet_reader.get_packet()
-        logger.info("I'm here")
         logger.info(f"[PyTest] Received Get LD Info Response: {packet}")
         get_ld_info_response_packet = cast(GetLdInfoResponsePacket, packet)
         ld_count = get_ld_info_response_packet.payload.ld_count
         memory_size = get_ld_info_response_packet.payload.memory_size
         logger.info(f"[PyTest] ld_count: {ld_count}, memory_size: {memory_size} ")
-        logger.info(f"[PyTest] Sending Get LD Allocations Request Finish")
+        logger.info(f"[PyTest]  Get LD info  Finish")
+        await asyncio.sleep(1)
 
+        # Get Ld Allocations Packet
+        logger.info(f"[PyTest]  Get LD Allocations Start")
+        get_ld_allocations_request_packet = GetLdAllocationsRequestPacket.create(port_or_ldid=0x3, start_ld_id=0, ld_allocation_list_limit=3)
+        packet_writer.write(bytes(get_ld_allocations_request_packet))
+        await packet_writer.drain()
+        packet = await packet_reader.get_packet()
+        logger.info(f"[PyTest] Received Get LD Allocations Response: {packet}")
+        get_ld_allocations_response_packet = cast(GetLdAllocationsResponsePacket, packet)
+        number_of_lds = get_ld_allocations_response_packet.get_ld_allocations_response_payload.number_of_lds
+        memory_granularity = get_ld_allocations_response_packet.get_ld_allocations_response_payload.memory_granularity
+        start_ld_id = get_ld_allocations_response_packet.get_ld_allocations_response_payload.start_ld_id
+        ld_allocation_list_length = get_ld_allocations_response_packet.get_ld_allocations_response_payload.ld_allocation_list_length
+        ld_allocation_list = get_ld_allocations_response_packet.get_ld_allocation_list()
+        logger.info(f"[PyTest] number_of_lds: {number_of_lds}, memory_granularity: {memory_granularity}, start_ld_id: {start_ld_id}, ld_allocation_list_length: {ld_allocation_list_length}, ld_allocation_list: {ld_allocation_list}")
+        logger.info(f"[PyTest]  Get LD Allocations Finish")
+        await asyncio.sleep(1)
+
+        # Set Ld Allocations Packet
+        logger.info(f"[PyTest]  Set LD Allocations Start")
+        set_ld_allocations_request_packet = SetLdAllocationsRequestPacket.create(port_or_ldid=0x3, number_of_lds=4, start_ld_id=0, ld_allocation_list=[0, 1, 2])
+        packet_writer.write(bytes(set_ld_allocations_request_packet))
+        await packet_writer.drain()
+        packet = await packet_reader.get_packet()
+        logger.info(f"[PyTest] Received Set LD Allocations Response: {packet}")
+        set_ld_allocations_response_packet = cast(SetLdAllocationsResponsePacket, packet)
+        number_of_lds = set_ld_allocations_response_packet.set_ld_allocations_response_payload.number_of_lds
+        start_ld_id = set_ld_allocations_response_packet.set_ld_allocations_response_payload.start_ld_id
+        ld_allocation_list_length = set_ld_allocations_response_packet.set_ld_allocations_response_payload.ld_allocation_list_length
+        ld_allocation_list = set_ld_allocations_response_packet.get_ld_allocation_list()
+        logger.info(f"[PyTest] number_of_lds: {number_of_lds}, start_ld_id: {start_ld_id}, ld_allocation_list_length: {ld_allocation_list_length}, ld_allocation_list: {ld_allocation_list}")
+        logger.info(f"[PyTest]  Set LD Allocations Finish")
+
+        logger.info("[PyTest] Sending tunnel management command request packets from switch to MLD Finish")
+        
+        await asyncio.sleep(1)
     # Start MLD
     mld_task = create_task(mld.run())
 

@@ -41,6 +41,8 @@ from opencxl.cxl.transport.transaction import (
     CciBasePacket,
     CciRequestPacket,
     CciResponsePacket,
+    GetLdAllocationsResponsePacket,
+    SetLdAllocationsResponsePacket,
 )
 from opencxl.util.logger import logger
 from opencxl.util.component import LabeledComponent
@@ -117,7 +119,7 @@ class PacketReader(LabeledComponent):
         base_packet.reset(header_load)
         remaining_length = base_packet.system_header.payload_length - len(
             base_packet
-        )  # 여기서 뻑남
+        )  
         if remaining_length < 0:
             raise Exception("remaining length is less than 0")
         payload = bytes(base_packet) + await self._read_payload(remaining_length)
@@ -216,6 +218,14 @@ class PacketReader(LabeledComponent):
             if cci_packet.get_command_opcode() == 0x5400:
                 cci_packet = GetLdInfoResponsePacket()
                 cci_packet.reset(payload)
+            elif cci_packet.get_command_opcode() == 0x5401:
+                cci_packet = GetLdAllocationsResponsePacket()
+                cci_packet.reset(payload)
+            elif cci_packet.get_command_opcode() == 0x5402:
+                cci_packet = SetLdAllocationsResponsePacket()
+                cci_packet.reset(payload)
+            else:
+                raise Exception("Unsupported CCI packet")
         else:
             raise Exception("Unsupported CCI packet")
 

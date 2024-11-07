@@ -24,19 +24,17 @@ from opencxl.cxl.component.packet_reader import PacketReader
 from opencxl.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
-    CciBasePacket,
-    CciMessagePacket,
-    CciPayloadPacket,
     CxlIoBasePacket,
     CxlMemBasePacket,
     CxlCacheBasePacket,
     SIDEBAND_TYPES,
     PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
-    GetLdInfoResponsePayload,
-    GetLdInfoResponsePacket,
-    CciResponsePacket,
     CciRequestPacket,
+    CciResponsePacket,
+    GetLdInfoResponsePacket,
+    GetLdAllocationsResponsePacket,
+    SetLdAllocationsResponsePacket,
 )
 from opencxl.cxl.device.cxl_type3_device import CXL_T3_DEV_TYPE
 from opencxl.cxl.component.fmld import FMLD
@@ -48,7 +46,7 @@ class FifoGroup:
     mmio: Queue
     cxl_mem: Queue
     cxl_cache: Queue
-    # cci_fifo: Queue # To LD, TODO: Enable later when CCI towards LD is implemented
+    # cci_fifo: Queue  # To LD, TODO: Enable later when CCI towards LD is implemented
 
 
 class CXL_IO_FIFO_TYPE(IntEnum):
@@ -85,6 +83,7 @@ class CxlPacketProcessor(RunnableComponent):
             upstream_fifo=self._cci_connection_for_fmld.cci_fifo,
             ld_count=self._ld_count,
             dev_type=CXL_T3_DEV_TYPE.MLD,
+            allocated_ld=[0,1,2,3],
         )
 
         logger.info(self._create_message(f"Configured for {component_type.name}"))
@@ -423,9 +422,15 @@ class CxlPacketProcessor(RunnableComponent):
                 self._writer.write(bytes(packet))
                 await self._writer.drain()
             elif opcode == 0x5401:
-                pass
+                packet = cast(GetLdAllocationsResponsePacket, packet)
+                self._writer.write(bytes(packet))
+                await self._writer.drain()
             elif opcode == 0x5402:
-                pass
+                packet = cast(SetLdAllocationsResponsePacket, packet)
+                self._writer.write(bytes(packet))
+                await self._writer.drain()
+            else:
+                logger.warning(self._create_message("Unsupported CCI packet"))
         logger.info(self._create_message("Stopped outgoing CCI FIFO processor"))
 
     async def _process_outgoing_packets(self):
@@ -462,11 +467,7 @@ class CxlPacketProcessor(RunnableComponent):
         # if self._outgoing.cci_fifo:
         #     self._fmld._upstream_fifo.target_to_host.abort()
         # await self._fmld._upstream_fifo.target_to_host.put(None)
-        logger.info("I'm here")
         task = create_task(self._fmld.stop())
-        logger.info("I'm here")
         await gather(task)
-        logger.info("I'm here")
         self._reader.abort()
-        logger.info("I'm here")
         # await self._fmld.stop()
