@@ -76,15 +76,7 @@ class CxlPacketProcessor(RunnableComponent):
         self._cxl_connection = cxl_connection
         self._component_type = component_type
 
-        self._cci_connection_for_fmld = CxlConnection()
-        self._ld_count = len(cxl_connection) if isinstance(cxl_connection, list) else 1
 
-        self._fmld = FMLD(
-            upstream_fifo=self._cci_connection_for_fmld.cci_fifo,
-            ld_count=self._ld_count,
-            dev_type=CXL_T3_DEV_TYPE.MLD,
-            allocated_ld=[0,1,2,3],
-        )
 
         logger.info(self._create_message(f"Configured for {component_type.name}"))
         if component_type in (CXL_COMPONENT_TYPE.R, CXL_COMPONENT_TYPE.DSP):
@@ -149,6 +141,15 @@ class CxlPacketProcessor(RunnableComponent):
                 self._outgoing.cxl_mem = self._cxl_connection.cxl_mem_fifo.target_to_host
         # Add MLD
         elif component_type == CXL_COMPONENT_TYPE.LD:
+            self._cci_connection_for_fmld = CxlConnection()
+            self._ld_count = len(cxl_connection) if isinstance(cxl_connection, list) else 1
+
+            self._fmld = FMLD(
+                upstream_fifo=self._cci_connection_for_fmld.cci_fifo,
+                ld_count=self._ld_count,
+                dev_type=CXL_T3_DEV_TYPE.MLD,
+                allocated_ld=[0,1,2,3],
+            )
             self._incoming_dir = PROCESSOR_DIRECTION.HOST_TO_TARGET
             self._outgoing_dir = PROCESSOR_DIRECTION.TARGET_TO_HOST
             self._incoming = [

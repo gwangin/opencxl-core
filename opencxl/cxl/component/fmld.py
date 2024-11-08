@@ -41,7 +41,7 @@ class FMLD(RunnableComponent):
         self._upstream_fifo = upstream_fifo
         self._ld_count = ld_count
         self._dev_type = dev_type
-        self._allocated_ld = sorted(allocated_ld, reverse= True)  # TODO Get/Set LD allocations Implementation 
+        self._allocated_ld = 12
         
     async def _process_get_ld_info_packet(self, get_ld_info_request_packet: CciRequestPacket):
         if get_ld_info_request_packet.get_command_opcode() != 0x5400:
@@ -61,10 +61,8 @@ class FMLD(RunnableComponent):
         if get_ld_allocations_packet.get_command_opcode() != 0x5401:
             raise Exception("Invalid command opcode")
         logger.info(f"Get LD Allocations: {get_ld_allocations_packet}")
-        
-        int_ld_allocation_list = int("".join(map(str, self._allocated_ld)))
         get_ld_allocations_response_packet = GetLdAllocationsResponsePacket.create(
-            number_of_lds=4, memory_granularity=0, start_ld_id=0, ld_allocation_list_length=4, ld_allocation_list=int_ld_allocation_list
+            number_of_lds=4, memory_granularity=0, start_ld_id=0, ld_allocation_list_length=4, ld_allocation_list=self._allocated_ld
             )
                                                                                    
         await self._upstream_fifo.target_to_host.put(get_ld_allocations_response_packet)
@@ -74,9 +72,8 @@ class FMLD(RunnableComponent):
         if set_ld_allocations_packet.get_command_opcode() != 0x5402:
             raise Exception("Invalid command opcode")
         logger.info(f"Set LD Allocations: {set_ld_allocations_packet}")
-        int_ld_allocation_list = int("".join(map(str, self._allocated_ld)))
         set_ld_allocations_response_packet = SetLdAllocationsResponsePacket.create(
-            number_of_lds=4, start_ld_id=0, ld_allocation_list_length=4, ld_allocation_list=int_ld_allocation_list
+            number_of_lds=4, start_ld_id=0, ld_allocation_list_length=4, ld_allocation_list=self._allocated_ld
             )
         await self._upstream_fifo.target_to_host.put(set_ld_allocations_response_packet)
         logger.info(f"Set LD Allocations Response sent done")

@@ -369,8 +369,9 @@ async def test_multi_logical_device_ld_id():
         memory_granularity = get_ld_allocations_response_packet.get_ld_allocations_response_payload.memory_granularity
         start_ld_id = get_ld_allocations_response_packet.get_ld_allocations_response_payload.start_ld_id
         ld_allocation_list_length = get_ld_allocations_response_packet.get_ld_allocations_response_payload.ld_allocation_list_length
-        ld_allocation_list = get_ld_allocations_response_packet.get_ld_allocation_list()
+        ld_allocation_list = get_ld_allocations_response_packet.ld_allocation_list
         logger.info(f"[PyTest] number_of_lds: {number_of_lds}, memory_granularity: {memory_granularity}, start_ld_id: {start_ld_id}, ld_allocation_list_length: {ld_allocation_list_length}, ld_allocation_list: {ld_allocation_list}")
+        logger.info(f"[PyTest]  get ld allocations field: {get_ld_allocations_response_packet._fields}")
         logger.info(f"[PyTest]  Get LD Allocations Finish")
         await asyncio.sleep(1)
 
@@ -385,8 +386,9 @@ async def test_multi_logical_device_ld_id():
         number_of_lds = set_ld_allocations_response_packet.set_ld_allocations_response_payload.number_of_lds
         start_ld_id = set_ld_allocations_response_packet.set_ld_allocations_response_payload.start_ld_id
         ld_allocation_list_length = set_ld_allocations_response_packet.set_ld_allocations_response_payload.ld_allocation_list_length
-        ld_allocation_list = set_ld_allocations_response_packet.get_ld_allocation_list()
+        ld_allocation_list = set_ld_allocations_response_packet.ld_allocation_list
         logger.info(f"[PyTest] number_of_lds: {number_of_lds}, start_ld_id: {start_ld_id}, ld_allocation_list_length: {ld_allocation_list_length}, ld_allocation_list: {ld_allocation_list}")
+        logger.info(f"[PyTest]  set ld allocations field: {set_ld_allocations_response_packet._fields}")
         logger.info(f"[PyTest]  Set LD Allocations Finish")
 
         logger.info("[PyTest] Sending tunnel management command request packets from switch to MLD Finish")
