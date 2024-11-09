@@ -26,8 +26,8 @@ from opencxl.cxl.transport.transaction import (
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
     CxlIoCfgWrPacket,
-    CxlMemMemRdPacket,
-    CxlMemMemWrPacket,
+    CciMessageHeaderPacket,
+    CciMessagePacket,
     CxlIoCompletionWithDataPacket,
     GetLdInfoRequestPacket,
     GetLdInfoResponsePacket,
@@ -343,6 +343,33 @@ async def test_multi_logical_device_ld_id():
         packet_writer = writer
 
         logger.info("[PyTest] Sending tunnel management command request packets from switch to MLD Start")
+
+
+        # cci_message to Packet test
+        logger.info(f"[PyTest]  CCI Message to Packet Start")
+        cci_message_header_packet = CciMessageHeaderPacket()
+        cci_message_header_packet.message_category = 0
+        cci_message_header_packet.message_tag = 0
+        cci_message_header_packet.command_opcode = 0x5401
+        cci_message_header_packet.message_payload_length_low = 0
+        cci_message_header_packet.message_payload_length_high = 0
+        cci_message_header_packet.background_operation = 0
+        cci_message_header_packet.return_code = 0
+        cci_message_header_packet.vendor_specific_extended_status = 0
+
+        data = b'\xab\xcd'
+        logger.info(f"[PyTest]  send data: {data}")
+        cci_message_packet = CciMessagePacket.create(cci_message_header_packet, data)
+
+        get_ld_alloc_test = GetLdAllocationsRequestPacket.create_from_ccimessage(0x03, cci_message_packet)
+        logger.info(f"[PyTest]  GetLdAllocationsRequestPacket.start_ldid: {int.to_bytes(get_ld_alloc_test.get_ld_allocations_request.start_ld_id)}")
+        logger.info(f"[PyTest]  GetLdAllocationsRequestPacket.ld_alloc_limit: {int.to_bytes(get_ld_alloc_test.get_ld_allocations_request.ld_allocation_list_limit)}")
+
+
+
+
+
+
 
         logger.info(f"[PyTest]  Get LD info  Start")
         get_ld_info_request_packet = GetLdInfoRequestPacket.create(port_or_ldid=0x3, message_catecory=0)
