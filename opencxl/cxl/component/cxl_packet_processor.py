@@ -46,7 +46,7 @@ class FifoGroup:
     mmio: Queue
     cxl_mem: Queue
     cxl_cache: Queue
-    # cci_fifo: Queue  # To LD, TODO: Enable later when CCI towards LD is implemented
+    cci_fifo: Optional[Queue]  # To LD, TODO: Enable later when CCI towards LD is implemented
 
 
 class CXL_IO_FIFO_TYPE(IntEnum):
@@ -148,7 +148,6 @@ class CxlPacketProcessor(RunnableComponent):
                 upstream_fifo=self._cci_connection_for_fmld.cci_fifo,
                 ld_count=self._ld_count,
                 dev_type=CXL_T3_DEV_TYPE.MLD,
-                allocated_ld=[0,1,2,3],
             )
             self._incoming_dir = PROCESSOR_DIRECTION.HOST_TO_TARGET
             self._outgoing_dir = PROCESSOR_DIRECTION.TARGET_TO_HOST
@@ -158,7 +157,7 @@ class CxlPacketProcessor(RunnableComponent):
                     mmio=cxl_conn.mmio_fifo.host_to_target,
                     cxl_mem=cxl_conn.cxl_mem_fifo.host_to_target,
                     cxl_cache=None,
-                    # cci_fifo=cxl_conn.cci_fifo.host_to_target,
+                    cci_fifo= None,
                 )
                 for cxl_conn in self._cxl_connection
             ]
@@ -168,12 +167,8 @@ class CxlPacketProcessor(RunnableComponent):
                 mmio=self._cxl_connection[0].mmio_fifo.target_to_host,
                 cxl_mem=self._cxl_connection[0].cxl_mem_fifo.target_to_host,
                 cxl_cache=None,
-                # cci_fifo=self._cxl_connection[0].cci_fifo.target_to_host,
+                cci_fifo= None,
             )
-
-            # Add MCTP manager
-            # self._fmld._upstream_fifo.host_to_target =
-            # self._fmld._upstream_fifo.target_to_host =
 
         else:
             raise Exception(f"Unsupported component type {component_type.name}")
@@ -417,7 +412,7 @@ class CxlPacketProcessor(RunnableComponent):
                 logger.info(self._create_message("Stopped outgoing CCI FIFO processor"))
                 break
             opcode = packet.get_command_opcode()
-            logger.info(self._create_message(f"Received CCI packet with opcode {opcode}"))
+            logger.info(self._create_message(f"Received CCI packet with opcode {opcode:x}"))
             if opcode == 0x5400:
                 packet = cast(GetLdInfoResponsePacket, packet)
                 self._writer.write(bytes(packet))

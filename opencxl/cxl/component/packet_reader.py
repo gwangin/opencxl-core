@@ -22,7 +22,6 @@ from opencxl.cxl.transport.transaction import (
     CxlCacheH2DDataPacket,
     CxlCacheH2DReqPacket,
     CxlCacheH2DRspPacket,
-    GetLdInfoResponsePacket,
     SidebandConnectionRequestPacket,
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
@@ -41,7 +40,11 @@ from opencxl.cxl.transport.transaction import (
     CciBasePacket,
     CciRequestPacket,
     CciResponsePacket,
+    GetLdInfoRequestPacket,
+    GetLdInfoResponsePacket,
+    GetLdAllocationsRequestPacket,
     GetLdAllocationsResponsePacket,
+    SetLdAllocationsRequestPacket,
     SetLdAllocationsResponsePacket,
 )
 from opencxl.util.logger import logger
@@ -212,6 +215,18 @@ class PacketReader(LabeledComponent):
         if cci_base_packet.is_req():
             cci_packet = CciRequestPacket()
             cci_packet.reset(payload)
+            if cci_packet.get_command_opcode() == 0x5400:
+                cci_packet = GetLdInfoRequestPacket()
+                cci_packet.reset(payload)
+            elif cci_packet.get_command_opcode() == 0x5401:
+                cci_packet = GetLdAllocationsRequestPacket()
+                logger.info(f"GetLdAllocationsRequestPacket created: {cci_packet}")
+                cci_packet.reset(payload)
+            elif cci_packet.get_command_opcode() == 0x5402:
+                cci_packet = SetLdAllocationsRequestPacket()
+                cci_packet.reset(payload)
+            else:
+                raise Exception("Unsupported CCI packet")
         elif cci_base_packet.is_rsp():
             cci_packet = CciResponsePacket()
             cci_packet.reset(payload)
